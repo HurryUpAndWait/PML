@@ -1,0 +1,61 @@
+---
+title: "Practical Machine Learning Assignment"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data
+
+The training data for this project are available here:
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+Load the data:
+```{r}
+options(stringsAsFactors = FALSE)
+training <- read.csv("~/Dropbox/coursera/PracticalMachineLearning/assignment/pml-training.csv")
+```
+How to deal with missing values? If we use use 'complete.cases' - no removes 95% of the data!  So let's remove fields where > 90% empty, timestamps, 'X':
+```{r}
+idx <- which(colSums(is.na(training))/nrow(training) > 0.9)
+idx <- c(idx, which(sapply(training, function(x) sum(x==""))/nrow(training) > 0.9))
+idx <- c(idx, which(grepl("timestamp", names(training))))
+idx <- c(1, idx)
+idx <- sort(unname(idx))
+
+training <- training[,-idx]
+
+training$user_name <- as.factor(training$user_name)
+training$new_window <- as.factor(training$new_window)
+training$classe <- as.factor(training$classe)
+```
+Random Forests are easy to run in parallel:
+```{r}
+library(doMC)
+registerDoMC(2)
+```
+Load the 'caret' package and train the Random Forest:
+```{r}
+library(caret)
+modRF <- train(classe ~ ., data=training, method="parRF")
+summary(modRF)
+```
+
+Load the testing data and format to be the same as the training data:
+```{r}
+testing <- read.csv("~/Dropbox/coursera/PracticalMachineLearning/assignment/pml-testing.csv")
+testing <- testing[,-idx]
+
+testing$user_name <- factor(testing$user_name, levels = levels(training$user_name))
+testing$new_window <- factor(testing$new_window, levels = levels(training$new_window))
+
+testing <- testing[,-which(names(testing)=="problem_id")]
+
+predTest <- predict(modRF, newdata=testing)
+print(predTest)
+```
